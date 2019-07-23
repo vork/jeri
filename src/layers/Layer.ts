@@ -18,6 +18,7 @@ export interface ImageBlend {
   width: number;
   height: number;
   nChannels: number;
+  blendFunction: BlendFunction;
   blend: number;
 }
 
@@ -74,6 +75,24 @@ export default class Layer {
     Matrix4x4.fromScaling(this.aspectMatrixBuffer, [aspect.x, aspect.y, 1.0]);
     Matrix4x4.multiply(this.viewMatrixBuffer, this.aspectMatrixBuffer, this.transformation);
     return this.viewMatrixBuffer;
+  }
+}
+
+export enum BlendFunction {
+  Linear = 1,
+  Additive = 2,
+}
+
+const blendFunctions = {
+  "Linear": BlendFunction.Linear,
+  "Additive": BlendFunction.Additive,
+};
+
+export function blendFunctionFromString(name: string): BlendFunction {
+  if (blendFunctions.hasOwnProperty(name)) {
+    return blendFunctions[name];
+  } else {
+    throw Error(`Blend function ${name} is invalid. Available options: ${Object.keys(blendFunctions)}`);
   }
 }
 

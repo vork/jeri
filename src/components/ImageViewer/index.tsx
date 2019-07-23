@@ -7,7 +7,7 @@ import requestFullscreen from '../../utils/fullscreen';
 
 import HelpScreen from './HelpScreen';
 import ImageFrame from '../ImageFrame';
-import { lossFunctionFromString } from '../../layers/Layer';
+import { lossFunctionFromString, blendFunctionFromString } from '../../layers/Layer';
 import ImageFrameWithLoading, { ImageSpec } from '../ImageFrameWithLoading';
 import { NavRow } from './navigation';
 
@@ -51,6 +51,7 @@ export interface InputLeafLossMap {
 export interface InputLeafBlendMap {
   title: string;
   blendMap: {
+    function: string;
     blend: number;
     imageA: string;
     imageB: string;
@@ -62,7 +63,6 @@ export interface ImageViewerState {
   selection: string[];           /** List of item titles that are selected */
   viewTransform: { [tonemapGroup: string]: number }; /** Image view transform, a number between 0 and 1 for each tonemapGroup (string) */
   exposure: { [tonemapGroup: string]: number }; /** Image exposure, a number > 0 for each tonemapGroup (string) */
-  blend: number;                 /** Image blending. A number between 0-1. */
   helpIsOpen: boolean;           /** Whether the help screen overlay is currently open */
   defaultTransformation: Matrix4x4;
   transformationNeedsUpdate: boolean;
@@ -117,7 +117,6 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
       selection: this.getDefaultSelection(this.menuData).slice(1),
       viewTransform: { default: 0.0 },
       exposure: { default: 1.0 },
-      blend: 0.0,
       helpIsOpen: false,
       defaultTransformation: Matrix4x4.create(),
       transformationNeedsUpdate: true,
@@ -283,6 +282,7 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
       const config = img as InputLeafBlendMap;
       return {
         type: 'Blend',
+        blendFunction: blendFunctionFromString(config.blendMap.function),
         blend: config.blendMap.blend,
         urlA: this.props.baseUrl + config.blendMap.imageA,
         urlB: this.props.baseUrl + config.blendMap.imageB,
@@ -442,18 +442,10 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
     actions.e = changeExposure(1.1);
     actions.E = changeExposure(1.0 / 1.1);
 
-    // Blend controls
-    const changeBlend = (multiplier: number) => () => {
-      this.setState({ blend: Math.max(Math.min(multiplier * (this.state.blend || 1.0), 1.0), 0.0) });
-    };
-    actions.b = changeBlend(1.1);
-    actions.B = changeBlend(1.0 / 1.1);
-
     // Reset
     actions.r = () => {
       this.setState({ viewTransform: { default: 0.0 } });
       this.setState({ exposure: { default: 1.0 } });
-      this.setState({ blend: 0.0 });
       if (this.imageFrame) {
         this.imageFrame.reset();
       }

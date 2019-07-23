@@ -1,7 +1,7 @@
 import { Matrix4x4 } from '../utils/linalg';
 import cachedFunction from '../utils/cached-function';
 import { Image } from '../utils/image-loading';
-import Layer, { Input, LossFunction } from './Layer';
+import Layer, { Input, LossFunction, BlendFunction } from './Layer';
 
 enum DrawMode {
   LDR = 0,
@@ -34,6 +34,7 @@ uniform float gamma;
 uniform int mode;
 uniform int nChannels;
 uniform int lossFunction;
+uniform int blendFunction;
 uniform float blend;
 uniform int imageHeight; // Height and width are used to access neighboring pixels
 uniform int imageWidth;
@@ -156,10 +157,14 @@ void main(void) {
         float denominator = (aMean * aMean + bMean * bMean + c1) * (aVar + bVar + c2);
         float ssim = numerator / denominator;
         col = vec3(1. - ssim, 1. - ssim, 1. - ssim);
-    } else if  (blend > 0.0) {
+    } else if (blendFunction == ${BlendFunction.Linear}) {
       vec3 img = texture2D(imASampler, position).rgb;
       vec3 ovlay = texture2D(imBSampler, position).rgb;
       col = img * (1. - blend) + ovlay * blend;
+    } else if (blendFunction == ${BlendFunction.Additive}) {
+      vec3 img = texture2D(imASampler, position).rgb;
+      vec3 ovlay = texture2D(imBSampler, position).rgb;
+      col = img + ovlay * blend;
     } else {
         col = texture2D(imASampler, position).rgb;
         if (nChannels == 1) {
@@ -224,6 +229,7 @@ interface WebGlAttributes {
 interface WebGlUniforms {
   drawMode: WebGLUniformLocation;
   lossFunction: WebGLUniformLocation;
+  blendFunction: WebGLUniformLocation;
   blend: WebGLUniformLocation;
   nChannels: WebGLUniformLocation;
   viewMatrix: WebGLUniformLocation;
@@ -355,6 +361,7 @@ export default class ImageLayer extends Layer {
     if (this.image.type === 'Difference') {
       this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.ColorMap);
       this.gl.uniform1i(this.glUniforms.lossFunction, this.image.lossFunction);
+      this.gl.uniform1i(this.glUniforms.blendFunction, 0);
       this.gl.uniform1f(this.glUniforms.blend, 0.0);
       this.gl.activeTexture(this.gl.TEXTURE0);
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image.imageA));
@@ -369,6 +376,7 @@ export default class ImageLayer extends Layer {
         this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.LDR);
       }
       this.gl.uniform1i(this.glUniforms.lossFunction, 0);
+      this.gl.uniform1i(this.glUniforms.blendFunction, this.image.blendFunction);
       this.gl.uniform1f(this.glUniforms.blend, this.image.blend);
       this.gl.activeTexture(this.gl.TEXTURE0);
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image.imageA));
@@ -385,6 +393,7 @@ export default class ImageLayer extends Layer {
         this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.LDR);
       }
       this.gl.uniform1i(this.glUniforms.lossFunction, 0);
+      this.gl.uniform1i(this.glUniforms.blendFunction, 0);
       this.gl.uniform1f(this.glUniforms.blend, 0.0);
       this.gl.activeTexture(this.gl.TEXTURE0);
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image));
@@ -499,6 +508,7 @@ export default class ImageLayer extends Layer {
     return {
       drawMode: getUniformLocation('mode'),
       lossFunction: getUniformLocation('lossFunction'),
+      blendFunction: getUniformLocation('blendFunction'),
       blend: getUniformLocation('blend'),
       nChannels: getUniformLocation('nChannels'),
       viewMatrix: getUniformLocation('viewMatrix'),

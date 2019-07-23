@@ -3,7 +3,7 @@ import { Matrix4x4 } from '../utils/linalg';
 import styled from 'styled-components';
 
 import ImageFrame from './ImageFrame';
-import { LossFunction, Input as ImageInput } from '../layers/Layer';
+import { LossFunction, Input as ImageInput, BlendFunction } from '../layers/Layer';
 import { ImageCache } from '../utils/image-loading';
 
 const StretchingDiv = styled.div`
@@ -41,6 +41,7 @@ export interface ImageSpecLossMap {
 
 export interface ImageSpecBlendMap {
   type: 'Blend';
+  blendFunction: BlendFunction;
   blend: number;
   urlA: string;
   urlB: string;
@@ -173,6 +174,33 @@ export default class ImageFrameWithLoading extends
   private downloadImage(spec: ImageSpec): Promise<ImageInput> {
     if (spec.type === 'Url') {
       return this.cache.get(spec.url);
+    } else if (spec.type === 'Blend') {
+      return Promise.all([spec.urlA, spec.urlB].map(url => this.cache.get(url)))
+        .then(([imageA, imageB]) => {
+          // Make sure images have the same size and number of channels;
+          const height = imageA.height;
+          const width = imageA.width;
+          const nChannels = imageA.nChannels;
+          if (height !== imageB.height) {
+            throw Error(`${spec.urlA} & ${spec.urlB} with heights ${height} & ${imageB.height} cannot be compared.`);
+          }
+          if (width !== imageB.width) {
+            throw Error(`${spec.urlA} & ${spec.urlB} with widths ${width} & ${imageB.width} cannot be compared.`);
+          }
+          if (nChannels !== imageB.nChannels) {
+            throw Error(`${spec.urlA} & ${spec.urlB} with unequal nChannels ${nChannels} & ${imageB.nChannels}.`);
+          }
+          return {
+            type: spec.type,
+            imageA,
+            imageB,
+            width,
+            height,
+            nChannels,
+            blendFunction: spec.blendFunction,
+            blend: spec.blend,
+          };
+        });
     } else if (spec.type === 'Difference') {
       return Promise.all([spec.urlA, spec.urlB].map(url => this.cache.get(url)))
         .then(([imageA, imageB]) => {
@@ -197,6 +225,7 @@ export default class ImageFrameWithLoading extends
             height,
             nChannels,
             lossFunction: spec.lossFunction,
+
           };
         });
     } else {
