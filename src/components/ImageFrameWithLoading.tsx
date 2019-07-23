@@ -39,7 +39,15 @@ export interface ImageSpecLossMap {
   tonemapGroup: string;
 }
 
-export type ImageSpec = ImageSpecUrl | ImageSpecLossMap;
+export interface ImageSpecBlendMap {
+  type: 'Blend';
+  blend: number;
+  urlA: string;
+  urlB: string;
+  tonemapGroup: string;
+}
+
+export type ImageSpec = ImageSpecUrl | ImageSpecLossMap | ImageSpecBlendMap;
 
 export interface ImageFrameWithLoadingProps {
   imageSpec: ImageSpec;
@@ -100,18 +108,18 @@ export default class ImageFrameWithLoading extends
   render() {
     return (
       <StretchingDiv>
-      {this.state.image != null ?
-        <ImageFrame
-          viewTransform={this.props.viewTransform}
-          exposure={this.props.exposure}
-          gamma={this.props.gamma}
-          offset={this.props.offset}
-          image={this.state.image}
-          ref={(frame) => this.imageFrame = frame}
-          allowMovement={this.props.allowMovement}
-          enableMouseEvents={this.props.enableMouseEvents}
-        />
-        : null}
+        {this.state.image != null ?
+          <ImageFrame
+            viewTransform={this.props.viewTransform}
+            exposure={this.props.exposure}
+            gamma={this.props.gamma}
+            offset={this.props.offset}
+            image={this.state.image}
+            ref={(frame) => this.imageFrame = frame}
+            allowMovement={this.props.allowMovement}
+            enableMouseEvents={this.props.enableMouseEvents}
+          />
+          : null}
         {this.state.isLoading ? <LoadingOverlay>Downloading ...</LoadingOverlay> : null}
         {this.state.errorMsg ? <LoadingOverlay>{this.state.errorMsg}</LoadingOverlay> : null}
       </StretchingDiv>

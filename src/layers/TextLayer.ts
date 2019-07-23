@@ -13,13 +13,13 @@ export default class TextLayer extends Layer {
     // Create canvas 2d drawing context
     const context = canvas.getContext('2d');
     if (context == null) {
-        throw new Error('Failed to create 2D context for TextOverlay');
+      throw new Error('Failed to create 2D context for TextOverlay');
     }
     this.context = context;
 
     // Make sure 'this' is available even when these methods are passed as callbacks
     this.checkRender = this.checkRender.bind(this);
-    this.invalidate  = this.invalidate.bind(this);
+    this.invalidate = this.invalidate.bind(this);
 
     // Draw for the first time
     this.needsRerender = true;
@@ -86,7 +86,7 @@ export default class TextLayer extends Layer {
 
     this.context.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (image.type === 'Difference') {
+    if (image.type === 'Difference' || image.type === 'Blend') {
       // We don't have access to computed values, so won't show the HUD
       return;
     }
@@ -128,9 +128,9 @@ export default class TextLayer extends Layer {
    * @param yres
    */
   private convertClipToRaster(out: Vector4, a: Vector4, xres: number, yres: number) {
-      out.data[0] = (a.data[0] + 1.0) * 0.5 * xres;
-      out.data[1] = (1.0 - a.data[1]) * 0.5 * yres;
-      return out;
+    out.data[0] = (a.data[0] + 1.0) * 0.5 * xres;
+    out.data[1] = (1.0 - a.data[1]) * 0.5 * yres;
+    return out;
   }
 
   /**

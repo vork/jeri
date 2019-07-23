@@ -33,7 +33,7 @@ export interface InputNode {
   children: InputTree[];
 }
 
-export type InputLeaf = InputLeafImage | InputLeafLossMap;
+export type InputLeaf = InputLeafImage | InputLeafLossMap | InputLeafBlendMap;
 
 export interface InputLeafImage {
   title: string;
@@ -48,11 +48,21 @@ export interface InputLeafLossMap {
   };
 }
 
+export interface InputLeafBlendMap {
+  title: string;
+  blendMap: {
+    blend: number;
+    imageA: string;
+    imageB: string;
+  };
+}
+
 export interface ImageViewerState {
   activeRow: number;             /** The number of the row that is currently active for keyboard toggling */
   selection: string[];           /** List of item titles that are selected */
-  viewTransform: {[tonemapGroup: string]: number}; /** Image view transform, a number between 0 and 1 for each tonemapGroup (string) */
-  exposure: {[tonemapGroup: string]: number}; /** Image exposure, a number > 0 for each tonemapGroup (string) */
+  viewTransform: { [tonemapGroup: string]: number }; /** Image view transform, a number between 0 and 1 for each tonemapGroup (string) */
+  exposure: { [tonemapGroup: string]: number }; /** Image exposure, a number > 0 for each tonemapGroup (string) */
+  blend: number;                 /** Image blending. A number between 0-1. */
   helpIsOpen: boolean;           /** Whether the help screen overlay is currently open */
   defaultTransformation: Matrix4x4;
   transformationNeedsUpdate: boolean;
@@ -107,6 +117,7 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
       selection: this.getDefaultSelection(this.menuData).slice(1),
       viewTransform: { default: 0.0 },
       exposure: { default: 1.0 },
+      blend: 0.0,
       helpIsOpen: false,
       defaultTransformation: Matrix4x4.create(),
       transformationNeedsUpdate: true,
@@ -157,16 +168,16 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
     return (
       <MainDiv ref={(div: HTMLDivElement) => this.mainContainer = div}>
         <div>
-        {rows.map((row, i)  => (
-          <NavRow
-            key={row.title}
-            row={row}
-            selection={this.state.selection[i]}
-            handleClick={this.navigateTo.bind(this, rows, i)}
-            removeCommonPrefix={this.props.removeCommonPrefix}
-            active={this.state.activeRow === i}
-          />
-        ))}
+          {rows.map((row, i) => (
+            <NavRow
+              key={row.title}
+              row={row}
+              selection={this.state.selection[i]}
+              handleClick={this.navigateTo.bind(this, rows, i)}
+              removeCommonPrefix={this.props.removeCommonPrefix}
+              active={this.state.activeRow === i}
+            />
+          ))}
         </div>
         <ImageArea>
           <ImageFrameWithLoading
@@ -268,6 +279,15 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
         urlB: this.props.baseUrl + config.lossMap.imageB,
         tonemapGroup: (config as any).tonemapGroup || 'default', // tslint:disable-line
       };
+    } else if (img.hasOwnProperty('blend')) {
+      const config = img as InputLeafBlendMap;
+      return {
+        type: 'Blend',
+        blend: config.blendMap.blend,
+        urlA: this.props.baseUrl + config.blendMap.imageA,
+        urlB: this.props.baseUrl + config.blendMap.imageB,
+        tonemapGroup: (config as any).tonemapGroup || 'default', // tslint:disable-line
+      }
     } else {
       return {
         type: 'Url',
@@ -353,8 +373,8 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
   private keyboardHandler(event: KeyboardEvent) {
     const { key } = event;
 
-    const actions: {[x: string]: Function} = {};
-    const actionsUnderShift: {[x: string]: Function} = {};
+    const actions: { [x: string]: Function } = {};
+    const actionsUnderShift: { [x: string]: Function } = {};
 
     // Number keys
     const goToNumber = (i: number) => () => {
@@ -422,10 +442,18 @@ export default class ImageViewer extends React.Component<ImageViewerProps, Image
     actions.e = changeExposure(1.1);
     actions.E = changeExposure(1.0 / 1.1);
 
+    // Blend controls
+    const changeBlend = (multiplier: number) => () => {
+      this.setState({ blend: Math.max(Math.min(multiplier * (this.state.blend || 1.0), 1.0), 0.0) });
+    };
+    actions.b = changeBlend(1.1);
+    actions.B = changeBlend(1.0 / 1.1);
+
     // Reset
     actions.r = () => {
       this.setState({ viewTransform: { default: 0.0 } });
       this.setState({ exposure: { default: 1.0 } });
+      this.setState({ blend: 0.0 });
       if (this.imageFrame) {
         this.imageFrame.reset();
       }

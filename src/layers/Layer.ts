@@ -11,7 +11,18 @@ export interface ImageDifference {
   lossFunction: LossFunction;
 }
 
-export type Input = Image | ImageDifference;
+export interface ImageBlend {
+  type: 'Blend';
+  imageA: Image;
+  imageB: Image;
+  width: number;
+  height: number;
+  nChannels: number;
+  blend: number;
+}
+
+
+export type Input = Image | ImageDifference | ImageBlend;
 
 export default class Layer {
   protected transformation: Matrix4x4 = Matrix4x4.create();
@@ -43,7 +54,7 @@ export default class Layer {
    * Compute the scalings in X and Y make sure the (-1,1) x (-1,1) box has the aspect ratio of the image
    * and is positioned centerally in the canvas
    */
-  protected getAspect(): {x: number, y: number} {
+  protected getAspect(): { x: number, y: number } {
     const viewAspect = this.canvas.clientWidth / this.canvas.clientHeight;
     const textAspect = this.image.width / this.image.height;
     let aspect: { x: number, y: number };

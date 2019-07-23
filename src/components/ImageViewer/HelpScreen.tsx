@@ -60,6 +60,10 @@ export default () => {
             <td>Increase / decrease <strong>e</strong>xposure</td>
           </tr>
           <tr>
+            <th>b / B</th>
+            <td>In blend mode increase the <strong>b</strong>lend strength between the images</td>
+          </tr>
+          <tr>
             <th>r</th>
             <td>Reset exposure, view transform, positioning and zooming</td>
           </tr>

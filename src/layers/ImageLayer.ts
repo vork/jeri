@@ -34,6 +34,7 @@ uniform float gamma;
 uniform int mode;
 uniform int nChannels;
 uniform int lossFunction;
+uniform float blend;
 uniform int imageHeight; // Height and width are used to access neighboring pixels
 uniform int imageWidth;
 varying vec2 vTextureCoord;
@@ -155,6 +156,10 @@ void main(void) {
         float denominator = (aMean * aMean + bMean * bMean + c1) * (aVar + bVar + c2);
         float ssim = numerator / denominator;
         col = vec3(1. - ssim, 1. - ssim, 1. - ssim);
+    } else if  (blend > 0.0) {
+      vec3 img = texture2D(imASampler, position).rgb;
+      vec3 ovlay = texture2D(imBSampler, position).rgb;
+      col = img * (1. - blend) + ovlay * blend;
     } else {
         col = texture2D(imASampler, position).rgb;
         if (nChannels == 1) {
@@ -179,10 +184,10 @@ void main(void) {
 
 const imageVertices = new Float32Array([
   // X   Y     Z      U    V
-  -1.0, -1.0,  0.0,   0.0, 1.0,
-  -1.0,  1.0,  0.0,   0.0, 0.0,
-   1.0, -1.0,  0.0,   1.0, 1.0,
-   1.0,  1.0,  0.0,   1.0, 0.0,
+  -1.0, -1.0, 0.0, 0.0, 1.0,
+  -1.0, 1.0, 0.0, 0.0, 0.0,
+  1.0, -1.0, 0.0, 1.0, 1.0,
+  1.0, 1.0, 0.0, 1.0, 0.0,
 ]);
 
 const colorMapTexels = new Uint8Array([
@@ -199,16 +204,16 @@ const colorMapTexels = new Uint8Array([
 ]);
 
 function compileShader(code: string, type: number, gl: WebGLRenderingContext): WebGLShader {
-    var shader = gl.createShader(type);
-    if (!shader) {
-        throw new Error(`Creating shader failed with error.`);
-    }
-    gl.shaderSource(shader, code);
-    gl.compileShader(shader);
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        throw new Error(`Compiling shader failed with error '${gl.getShaderInfoLog(shader)}'.`);
-    }
-    return shader;
+  var shader = gl.createShader(type);
+  if (!shader) {
+    throw new Error(`Creating shader failed with error.`);
+  }
+  gl.shaderSource(shader, code);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    throw new Error(`Compiling shader failed with error '${gl.getShaderInfoLog(shader)}'.`);
+  }
+  return shader;
 }
 
 interface WebGlAttributes {
@@ -219,6 +224,7 @@ interface WebGlAttributes {
 interface WebGlUniforms {
   drawMode: WebGLUniformLocation;
   lossFunction: WebGLUniformLocation;
+  blend: WebGLUniformLocation;
   nChannels: WebGLUniformLocation;
   viewMatrix: WebGLUniformLocation;
   imASampler: WebGLUniformLocation;
@@ -238,7 +244,7 @@ export interface TonemappingSettings {
   gamma: number;
   exposure: number;
 }
-const defaultTonemapping: TonemappingSettings = { viewTransform:0.0, exposure: 1.0, gamma: 1.0, offset: 0.0 };
+const defaultTonemapping: TonemappingSettings = { viewTransform: 0.0, exposure: 1.0, gamma: 1.0, offset: 0.0 };
 
 export type TextureCache = (image: Image) => WebGLTexture;
 
@@ -262,7 +268,7 @@ export default class ImageLayer extends Layer {
 
     // Make sure 'this' is available even when these methods are passed as a callback
     this.checkRender = this.checkRender.bind(this);
-    this.invalidate  = this.invalidate.bind(this);
+    this.invalidate = this.invalidate.bind(this);
 
     this.initWebGl(canvas);
 
@@ -349,6 +355,21 @@ export default class ImageLayer extends Layer {
     if (this.image.type === 'Difference') {
       this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.ColorMap);
       this.gl.uniform1i(this.glUniforms.lossFunction, this.image.lossFunction);
+      this.gl.uniform1f(this.glUniforms.blend, 0.0);
+      this.gl.activeTexture(this.gl.TEXTURE0);
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image.imageA));
+      this.gl.uniform1i(this.glUniforms.imASampler, 0);
+      this.gl.activeTexture(this.gl.TEXTURE1);
+      this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image.imageB));
+      this.gl.uniform1i(this.glUniforms.imBSampler, 1);
+    } else if (this.image.type === "Blend") {
+      if (this.image.imageA.type === 'HdrImage') {
+        this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.HDR);
+      } else {
+        this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.LDR);
+      }
+      this.gl.uniform1i(this.glUniforms.lossFunction, 0);
+      this.gl.uniform1f(this.glUniforms.blend, this.image.blend);
       this.gl.activeTexture(this.gl.TEXTURE0);
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image.imageA));
       this.gl.uniform1i(this.glUniforms.imASampler, 0);
@@ -364,6 +385,7 @@ export default class ImageLayer extends Layer {
         this.gl.uniform1i(this.glUniforms.drawMode, DrawMode.LDR);
       }
       this.gl.uniform1i(this.glUniforms.lossFunction, 0);
+      this.gl.uniform1f(this.glUniforms.blend, 0.0);
       this.gl.activeTexture(this.gl.TEXTURE0);
       this.gl.bindTexture(this.gl.TEXTURE_2D, this.getTexture(this.image));
       this.gl.uniform1i(this.glUniforms.imASampler, 0);
@@ -410,12 +432,12 @@ export default class ImageLayer extends Layer {
 
     const program = this.gl.createProgram();
     if (vertexShader && fragmentShader && program) {
-        this.gl.attachShader(program, vertexShader);
-        this.gl.attachShader(program, fragmentShader);
-        this.gl.linkProgram(program);
+      this.gl.attachShader(program, vertexShader);
+      this.gl.attachShader(program, fragmentShader);
+      this.gl.linkProgram(program);
     }
     if (!program || !this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
-        throw new Error('Failed to link the program.');
+      throw new Error('Failed to link the program.');
     }
     this.gl.useProgram(program);
     return program;
@@ -477,6 +499,7 @@ export default class ImageLayer extends Layer {
     return {
       drawMode: getUniformLocation('mode'),
       lossFunction: getUniformLocation('lossFunction'),
+      blend: getUniformLocation('blend'),
       nChannels: getUniformLocation('nChannels'),
       viewMatrix: getUniformLocation('viewMatrix'),
       imASampler: getUniformLocation('imASampler'),
@@ -499,29 +522,29 @@ export default class ImageLayer extends Layer {
     this.gl.bindTexture(this.gl.TEXTURE_2D, texture);
     if (image.type === 'HdrImage') {
       if (image.nChannels === 1) {
-          this.gl.texImage2D(
-            this.gl.TEXTURE_2D,
-            0,
-            this.gl.LUMINANCE,
-            image.width,
-            image.height,
-            0,
-            this.gl.LUMINANCE,
-            this.gl.FLOAT,
-            image.data
-          );
+        this.gl.texImage2D(
+          this.gl.TEXTURE_2D,
+          0,
+          this.gl.LUMINANCE,
+          image.width,
+          image.height,
+          0,
+          this.gl.LUMINANCE,
+          this.gl.FLOAT,
+          image.data
+        );
       } else if (image.nChannels === 3) {
-          this.gl.texImage2D(
-            this.gl.TEXTURE_2D,
-            0,
-            this.gl.RGB,
-            image.width,
-            image.height,
-            0,
-            this.gl.RGB,
-            this.gl.FLOAT,
-            image.data
-          );
+        this.gl.texImage2D(
+          this.gl.TEXTURE_2D,
+          0,
+          this.gl.RGB,
+          image.width,
+          image.height,
+          0,
+          this.gl.RGB,
+          this.gl.FLOAT,
+          image.data
+        );
       } else {
         throw new Error(`Don't know what to do with ${image.nChannels} image channels.`);
       }
